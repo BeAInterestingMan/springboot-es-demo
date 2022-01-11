@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: springboot-es-demo
+
+server:
+  port: 8081
+
+es:
+ config:
+  host: 119.3.37.125
+  port: 9200
