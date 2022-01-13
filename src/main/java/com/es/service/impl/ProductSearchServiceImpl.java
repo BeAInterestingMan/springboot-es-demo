@@ -1,9 +1,11 @@
 package com.es.service.impl;
 
+import com.es.enums.IndexEnum;
 import com.es.helper.RestClientHelper;
 import com.es.pojo.dto.AggSearchBaseDTO;
 import com.es.pojo.dto.ProductSkuDTO;
 import com.es.pojo.dto.base.BaseEsPageRequest;
+import com.es.pojo.dto.base.EsSortParamDTO;
 import com.es.pojo.dto.base.Page;
 import com.es.pojo.dto.request.ProductRecommendSearchReq;
 import com.es.pojo.dto.response.ProductCategoryRes;
@@ -19,11 +21,15 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -74,5 +80,64 @@ public class ProductSearchServiceImpl implements ProductSearchService {
         };
         BaseEsPageRequest baseEsPageRequest = CopyUtil.copyBean(recommendSearchReq, BaseEsPageRequest.class);
         return restClientHelper.scoreSearch(boolQueryBuilder,filterFunctionBuilders,baseEsPageRequest,ProductSkuDTO.class);
+    }
+
+    @Override
+    public Page<List<ProductSkuDTO>> productSearch(ProductSkuDTO productSkuDTO) {
+        BoolQueryBuilder boolQueryBuilder = buildQuery(productSkuDTO);
+        BaseEsPageRequest baseEsPageRequest = buildPageParam();
+        return restClientHelper.queryPage(boolQueryBuilder,baseEsPageRequest,ProductSkuDTO.class);
+    }
+    /**
+     * @Description 构建分页
+     * @author liuhu
+     * @param
+     * @date 2022/1/13 9:59
+     * @return com.es.pojo.dto.base.BaseEsPageRequest
+     */
+    private  BaseEsPageRequest buildPageParam(){
+        BaseEsPageRequest baseEsPageRequest = new BaseEsPageRequest();
+        baseEsPageRequest.setIndexName(IndexEnum.PRODUCT.getValue());
+        List<EsSortParamDTO> esSortParamDTOList = Lists.newArrayList(new EsSortParamDTO("createTime", SortOrder.DESC));
+        baseEsPageRequest.setEsSortParamList(esSortParamDTOList);
+        return baseEsPageRequest;
+    }
+
+    private BoolQueryBuilder buildQuery(ProductSkuDTO productSkuDTO){
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+        // 分词查询  对于输入的搜索关键字也会分词
+        if(StringUtils.isNotBlank(productSkuDTO.getProductName())){
+            boolQueryBuilder.must(QueryBuilders.matchQuery("productName",productSkuDTO.getProductName()));
+        }
+        // 模糊查询 类似mysql like
+        if(StringUtils.isNotBlank(productSkuDTO.getBrandName())){
+            boolQueryBuilder.must(QueryBuilders.wildcardQuery("brandName.keyword",productSkuDTO.getProductName()));
+        }
+        // = 值查询
+        if(StringUtils.isNotBlank(productSkuDTO.getSkuCode())){
+            boolQueryBuilder.must(QueryBuilders.termQuery("skuCode",productSkuDTO.getSkuCode()));
+        }
+        // in 查询  支持两个都是List 取交集
+        if(!CollectionUtils.isEmpty(productSkuDTO.getCategoryCode())){
+            boolQueryBuilder.must(QueryBuilders.termsQuery("categoryCode",productSkuDTO.getCategoryCode()));
+        }
+        //范围查询
+        boolQueryBuilder.must(QueryBuilders.rangeQuery("stock").gt(0));
+        if(Objects.nonNull(productSkuDTO.getCreateTimeStart()) || Objects.nonNull(productSkuDTO.getCreateTimeEnd())){
+            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery("createTime");
+            // 转时间戳查询
+            if(Objects.nonNull(productSkuDTO.getCreateTimeStart())){
+                rangeQuery.gt(LocalDateTime.now().toInstant(ZoneOffset.of("+8")).toEpochMilli());
+            }
+            if(Objects.nonNull(productSkuDTO.getCreateTimeEnd())){
+                rangeQuery.lt(LocalDateTime.now().toInstant(ZoneOffset.of("+8")).toEpochMilli());
+            }
+            boolQueryBuilder.must(rangeQuery);
+        }
+        // should查询
+        if(Objects.nonNull(productSkuDTO.getPrice())){
+            boolQueryBuilder.should(QueryBuilders.termQuery("price",productSkuDTO.getPrice()));
+        }
+        return boolQueryBuilder;
     }
 }

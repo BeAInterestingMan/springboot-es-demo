@@ -70,7 +70,6 @@ public class ProductSearchController {
      */
     @PostMapping("search")
     public Page<List<ProductSkuDTO>> productSearch(@RequestBody ProductSkuDTO productSkuDTO){
-//        return productSearchService.recommendProductSearch(productSkuDTO);
-        return null;
+       return productSearchService.productSearch(productSkuDTO);
     }
 }

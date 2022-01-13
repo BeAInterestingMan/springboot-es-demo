@@ -39,4 +39,13 @@ public interface ProductSearchService {
     * @return java.util.List<com.es.pojo.dto.ProductSkuDTO>
     */
    Page<List<ProductSkuDTO>> recommendProductSearch(ProductRecommendSearchReq recommendSearchReq);
+
+   /**
+    * @Description 商品搜索
+    * @author liuhu
+    * @param productSkuDTO
+    * @date 2022/1/13 9:32
+    * @return com.es.pojo.dto.base.Page<java.util.List<com.es.pojo.dto.ProductSkuDTO>>
+    */
+   Page<List<ProductSkuDTO>> productSearch(ProductSkuDTO productSkuDTO);
 }

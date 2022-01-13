@@ -50,7 +50,16 @@ public class RestClientHelper {
     private RestHighLevelClient restHighLevelClient;
 
 
-    private <T> Page<T> queryPage(BoolQueryBuilder queryBuilder, BaseEsPageRequest request, Class<T> target){
+    /**
+     * @Description 查询分页
+     * @author liuhu
+     * @param queryBuilder
+     * @param request
+     * @param target
+     * @date 2022/1/13 9:34
+     * @return com.es.pojo.dto.base.Page<java.util.List<T>>
+     */
+    public <T> Page<List<T>> queryPage(BoolQueryBuilder queryBuilder, BaseEsPageRequest request, Class<T> target){
         Page page = new Page(request.getCurrentPage(), request.getPageSize(), 0L, new ArrayList<>());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(queryBuilder);
@@ -63,7 +72,7 @@ public class RestClientHelper {
             SearchHit[] hits = response.getHits().getHits();
             long total = response.getHits().getTotalHits().value;
             List<T> data = Arrays.stream(hits).map(v -> JSON.parseObject(v.getSourceAsString(), target)).collect(Collectors.toList());
-           return  new Page<>(request.getCurrentPage(),request.getPageSize(),total,data);
+           return  new Page(request.getCurrentPage(),request.getPageSize(),total,data);
         } catch (IOException e) {
            log.error("查询es分页异常",e);
         }

@@ -51,11 +51,7 @@ public class ProductSkuDTO {
     private Integer status;
 
     /**创建时间*/
-    private LocalDateTime createTime;
+    private LocalDateTime createTimeStart;
 
-    /**修改时间*/
-    private LocalDateTime updateTime;
-
-    /**上架时间*/
-    private LocalDateTime shelvesTime;
+    private LocalDateTime createTimeEnd;
 }
