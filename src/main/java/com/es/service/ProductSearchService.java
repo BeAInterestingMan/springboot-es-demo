@@ -2,6 +2,7 @@ package com.es.service;
 
 import com.es.pojo.dto.ProductSkuDTO;
 import com.es.pojo.dto.base.Page;
+import com.es.pojo.dto.request.ProductHighLightSearchReq;
 import com.es.pojo.dto.request.ProductRecommendSearchReq;
 import com.es.pojo.dto.response.ProductCategoryRes;
 import com.es.pojo.dto.response.ProductMindSearchRes;
@@ -48,4 +49,15 @@ public interface ProductSearchService {
     * @return com.es.pojo.dto.base.Page<java.util.List<com.es.pojo.dto.ProductSkuDTO>>
     */
    Page<List<ProductSkuDTO>> productSearch(ProductSkuDTO productSkuDTO);
+
+   void productHotWordSearch();
+
+   /**
+    * @Description 高亮搜索
+    * @author liuhu
+    * @param request
+    * @date 2022/1/14 14:21
+    * @return com.es.pojo.dto.base.Page<java.util.List<com.es.pojo.dto.ProductSkuDTO>>
+    */
+   Page<List<ProductSkuDTO>> productHighLightSearchSearch(ProductHighLightSearchReq request);
 }

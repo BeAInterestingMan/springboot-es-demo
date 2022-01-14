@@ -7,6 +7,7 @@ import com.es.pojo.dto.ProductSkuDTO;
 import com.es.pojo.dto.base.BaseEsPageRequest;
 import com.es.pojo.dto.base.EsSortParamDTO;
 import com.es.pojo.dto.base.Page;
+import com.es.pojo.dto.request.ProductHighLightSearchReq;
 import com.es.pojo.dto.request.ProductRecommendSearchReq;
 import com.es.pojo.dto.response.ProductCategoryRes;
 import com.es.pojo.dto.response.ProductMindSearchRes;
@@ -28,6 +29,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -88,6 +90,23 @@ public class ProductSearchServiceImpl implements ProductSearchService {
         BaseEsPageRequest baseEsPageRequest = buildPageParam();
         return restClientHelper.queryPage(boolQueryBuilder,baseEsPageRequest,ProductSkuDTO.class);
     }
+
+    @Override
+    public void productHotWordSearch() {
+
+    }
+
+    @Override
+    public Page<List<ProductSkuDTO>> productHighLightSearchSearch(ProductHighLightSearchReq request) {
+        if(StringUtils.isBlank(request.getKeyword())){
+            return null;
+        }
+        BaseEsPageRequest baseEsPageRequest = CopyUtil.copyBean(request, BaseEsPageRequest.class);
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
+        queryBuilder.must(QueryBuilders.multiMatchQuery(request.getKeyword(),"productName"));
+        return restClientHelper.highLightSearchPage(queryBuilder,baseEsPageRequest,"productName",ProductSkuDTO.class);
+    }
+
     /**
      * @Description 构建分页
      * @author liuhu

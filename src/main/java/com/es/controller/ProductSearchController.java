@@ -2,6 +2,7 @@ package com.es.controller;
 
 import com.es.pojo.dto.ProductSkuDTO;
 import com.es.pojo.dto.base.Page;
+import com.es.pojo.dto.request.ProductHighLightSearchReq;
 import com.es.pojo.dto.request.ProductRecommendSearchReq;
 import com.es.pojo.dto.response.ProductCategoryRes;
 import com.es.pojo.dto.response.ProductMindSearchRes;
@@ -71,5 +72,25 @@ public class ProductSearchController {
     @PostMapping("search")
     public Page<List<ProductSkuDTO>> productSearch(@RequestBody ProductSkuDTO productSkuDTO){
        return productSearchService.productSearch(productSkuDTO);
+    }
+
+
+    @PostMapping("hotWord")
+    public Page<List<ProductSkuDTO>> productHotWordSearch(){
+        //思路1 前端埋点将用户搜索关键字时间等信息写入es另一个索引
+        // 2.用这个索引做数据分析 热词统计
+        return null;
+    }
+
+    /**
+     * @Description  高亮搜索
+     * @author liuhu
+     * @param request
+     * @date 2022/1/14 21:10
+     * @return com.es.pojo.dto.base.Page<java.util.List<com.es.pojo.dto.ProductSkuDTO>>
+     */
+    @PostMapping("highLightSearch")
+    public Page<List<ProductSkuDTO>> productHighLightSearchSearch(@RequestBody ProductHighLightSearchReq request){
+        return productSearchService.productHighLightSearchSearch(request);
     }
 }

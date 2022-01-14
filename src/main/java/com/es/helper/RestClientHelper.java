@@ -1,18 +1,17 @@
 package com.es.helper;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.es.enums.IndexEnum;
 import com.es.pojo.dto.AggSearchBaseDTO;
-import com.es.pojo.dto.base.Page;
 import com.es.pojo.dto.base.BaseEsPageRequest;
-import com.es.pojo.dto.response.ProductCategoryRes;
+import com.es.pojo.dto.base.Page;
 import com.es.pojo.dto.response.ProductMindSearchRes;
 import com.es.pojo.po.ProductSku;
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -24,11 +23,13 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
@@ -38,8 +39,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Component
@@ -60,21 +63,34 @@ public class RestClientHelper {
      * @return com.es.pojo.dto.base.Page<java.util.List<T>>
      */
     public <T> Page<List<T>> queryPage(BoolQueryBuilder queryBuilder, BaseEsPageRequest request, Class<T> target){
-        Page page = new Page(request.getCurrentPage(), request.getPageSize(), 0L, new ArrayList<>());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(queryBuilder);
         // es 从0开始
         searchSourceBuilder.from((request.getCurrentPage() - 1) * request.getPageSize()).size(request.getPageSize());
         SearchRequest searchRequest = new SearchRequest(request.getIndexName());
         searchRequest.source(searchSourceBuilder);
+        return queryCommonPageData(searchRequest,request,target);
+    }
+
+    /**
+     * @Description 通用分页结果处理
+     * @author liuhu
+     * @param searchRequest
+     * @param request
+     * @param target
+     * @date 2022/1/14 13:43
+     * @return com.es.pojo.dto.base.Page<java.util.List<T>>
+     */
+    private  <T> Page<List<T>>  queryCommonPageData(SearchRequest searchRequest, BaseEsPageRequest request, Class<T> target){
+        Page page = new Page(request.getCurrentPage(), request.getPageSize(), 0L, new ArrayList<>());
         try {
             SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
             SearchHit[] hits = response.getHits().getHits();
             long total = response.getHits().getTotalHits().value;
             List<T> data = Arrays.stream(hits).map(v -> JSON.parseObject(v.getSourceAsString(), target)).collect(Collectors.toList());
-           return  new Page(request.getCurrentPage(),request.getPageSize(),total,data);
+            return  new Page(request.getCurrentPage(),request.getPageSize(),total,data);
         } catch (IOException e) {
-           log.error("查询es分页异常",e);
+            log.error("查询es分页异常",e);
         }
         return  page;
     }
@@ -223,25 +239,10 @@ public class RestClientHelper {
      */
     public <T>Page<List<T>> scoreSearch(BoolQueryBuilder queryBuilder,FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders,
                             BaseEsPageRequest baseEsPageRequest,Class<T> target) {
-        Page emptyPage = new Page(baseEsPageRequest.getCurrentPage(), baseEsPageRequest.getPageSize(), 0L, Lists.newArrayList());
         SearchRequest searchRequest = new SearchRequest(baseEsPageRequest.getIndexName());
         SearchSourceBuilder sourceBuilder = buildScoreRequest(queryBuilder, filterFunctionBuilders,baseEsPageRequest);
         searchRequest.source(sourceBuilder);
-        try {
-            SearchResponse search = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-            TotalHits totalHits = search.getHits().getTotalHits();
-            // 总数据量
-            long total = totalHits.value;
-            SearchHit[] hits = search.getHits().getHits();
-            // 数据集合
-            List<T> dataList = Arrays.stream(hits).map(v -> {
-                return JSON.parseObject(v.getSourceAsString(), target);
-            }).collect(Collectors.toList());
-            return new Page(baseEsPageRequest.getCurrentPage(), baseEsPageRequest.getPageSize(), total,dataList);
-        } catch (IOException e) {
-            log.error("execute aggSearch error,sourceBuilder:{}",sourceBuilder.toString(),e);
-            return emptyPage;
-        }
+        return queryCommonPageData(searchRequest,baseEsPageRequest,target);
     }
 
     /**
@@ -287,5 +288,83 @@ public class RestClientHelper {
                 sourceBuilder.sort(v.getColumn(),v.getSortOrder());
             });
         }
+    }
+
+
+    /**
+     * @Description 高亮搜索
+     * @author liuhu
+     * @param queryBuilder
+     * @param request
+     * @param highLightColumn 需要高亮搜索匹配的字段
+     * @param target
+     * @date 2022/1/14 13:50
+     * @return com.es.pojo.dto.base.Page<java.util.List<T>>
+     */
+    public <T> Page<List<T>> highLightSearchPage(BoolQueryBuilder queryBuilder,BaseEsPageRequest request,String highLightColumn, Class<T> target){
+        SearchRequest searchRequest = new SearchRequest(request.getIndexName());
+        SearchSourceBuilder sourceBuilder = buildHighLightQuery(highLightColumn, queryBuilder, request);
+        searchRequest.source(sourceBuilder);
+        Page page = new Page(request.getCurrentPage(), request.getPageSize(), 0L, new ArrayList<>());
+        try {
+            SearchResponse response = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+            SearchHit[] hits = response.getHits().getHits();
+            long total = response.getHits().getTotalHits().value;
+            List<T> data = Arrays.stream(hits).map(v -> JSON.parseObject(resolveHighLight(v,highLightColumn), target)).collect(Collectors.toList());
+            //获取
+            return new Page(request.getCurrentPage(), request.getPageSize(), total, data);
+        } catch (IOException e) {
+            log.error("查询es分页异常",e);
+            return page;
+        }
+    }
+
+    /**
+     * @Description 将高亮的文本替换原来的文本
+     * @author liuhu
+     * @param hit
+     * @param highLightColumn
+     * @date 2022/1/14 14:12
+     * @return java.lang.String
+     */
+    private String resolveHighLight(SearchHit hit , String highLightColumn) {
+        // 源属性
+        String sourceData = hit.getSourceAsString();
+        // 获取高亮字段
+        HighlightField highlightField = hit.getHighlightFields().get(highLightColumn);
+        if(Objects.isNull(highlightField)){
+            return sourceData;
+        }
+        String highLightText = Arrays.stream(highlightField.getFragments()).map(String::valueOf).collect(Collectors.joining());
+        // 没命中直接返回原值
+        if(StringUtils.isBlank(highLightText)){
+            return sourceData;
+        }
+        // 替换  将高亮的文本替换原来的文本
+        JSONObject jsonObject = JSONObject.parseObject(sourceData);
+        jsonObject.put(highLightColumn,highLightText);
+        return JSONObject.toJSONString(jsonObject);
+    }
+
+
+    /**
+     * @Description 构建高亮搜索查询
+     * @author liuhu
+     * @param highLightColumn
+     * @param queryBuilder
+     * @date 2022/1/14 13:48
+     * @return org.elasticsearch.search.builder.SearchSourceBuilder
+     */
+    private SearchSourceBuilder  buildHighLightQuery(String highLightColumn,BoolQueryBuilder queryBuilder,BaseEsPageRequest request){
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        // 高亮匹配字段和标签
+        highlightBuilder.field(highLightColumn)
+                .preTags("<font color='red'>")
+                .postTags("</font>")
+                .requireFieldMatch(Boolean.FALSE);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.from((request.getCurrentPage() - 1) * request.getPageSize()).size(request.getPageSize());
+        return sourceBuilder.query(queryBuilder)
+                .highlighter(highlightBuilder);
     }
 }
